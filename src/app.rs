@@ -4,7 +4,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::widgets::ListState;
 use serde_json;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
 
@@ -28,7 +28,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Result<Self> {
-        let data_file = "todos.json".to_string();
+        let data_file = Self::get_data_file_path()?;
         let todos = Self::load_todos(&data_file)?;
         let next_id = todos.iter().map(|t| t.id).max().unwrap_or(0) + 1;
 
@@ -47,6 +47,29 @@ impl App {
         }
 
         Ok(app)
+    }
+
+    fn get_data_file_path() -> Result<String> {
+        // Try XDG_DATA_HOME first, fall back to ~/.local/share
+        let data_dir = if let Ok(xdg_data_home) = std::env::var("XDG_DATA_HOME") {
+            PathBuf::from(xdg_data_home).join("oxitodo")
+        } else {
+            let home_dir = std::env::var("HOME")
+                .map_err(|_| color_eyre::eyre::eyre!("Could not find HOME directory"))?;
+
+            PathBuf::from(home_dir)
+                .join(".local")
+                .join("share")
+                .join("oxitodo")
+        };
+
+        // Create the directory if it doesn't exist
+        if !data_dir.exists() {
+            fs::create_dir_all(&data_dir)?;
+        }
+
+        let data_file = data_dir.join("todos.json");
+        Ok(data_file.to_string_lossy().to_string())
     }
 
     fn load_todos(file_path: &str) -> Result<Vec<TodoItem>> {
